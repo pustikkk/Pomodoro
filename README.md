@@ -1,4 +1,4 @@
-нщг# Pomodoro
+# Pomodoro
 
 Most people struggle to stay focused for long stretches — distractions pile up, breaks get skipped, and it's hard to know how much deep work you actually did in a day. Pomodoro fixes this by structuring your time into alternating focus and break intervals, so you work in deliberate sprints instead of grinding until burnout.
 
@@ -22,9 +22,10 @@ Everything is scoped to the authenticated user — you can never see or touch an
 - **Custom sessions** — combine up to 10 template blocks in any order to build a session as long or short as you need
 - **Auto-restart** — toggle a timer to loop indefinitely until you stop it manually
 - **Email-verified auth** — both signup and login require a 6-digit OTP delivered by email; the code expires in 5 minutes and is single-use
+- **HTTPS everywhere** — dev server and API both run over TLS via mkcert; the `secure` cookie flag is always set so the JWT is never transmitted over plain HTTP in any environment
 - **Stars** — one star per completed block, counted separately per template type, shown as a badge strip on the dashboard
 - **Animated focus screen** — a shifting gradient background, SVG ring progress, and smooth transitions between focus and break phases
-- **Full REST API** — all timer and star operations are available as JSON endpoints authenticated with a Bearer token
+- **Full REST API** — all timer and star operations are available as JSON endpoints, authenticated via the same httpOnly session cookie as the web UI
 
 ---
 
@@ -36,7 +37,7 @@ Everything is scoped to the authenticated user — you can never see or touch an
 | ORM | Prisma 5 |
 | Database | PostgreSQL 16 |
 | Cache / rate-limit | Redis 7 (ioredis) |
-| Auth | JWT in httpOnly cookies (@fastify/jwt) |
+| Auth | JWT in httpOnly + secure cookies over HTTPS (@fastify/jwt, mkcert in dev) |
 | Email | SendGrid (@sendgrid/mail) |
 | Password hashing | bcrypt (12 rounds) |
 | Frontend | React 18 + TypeScript + Vite 6 |
@@ -50,7 +51,7 @@ Everything is scoped to the authenticated user — you can never see or touch an
 
 ## API
 
-All routes sit under `/api/v1`. Authentication uses an `httpOnly` cookie named `token` (issued by `POST /auth/verify-code`). There is no separate token-issuance endpoint for bearer tokens — the session cookie covers both the web UI and direct API use from a browser.
+All auth, timer, and star endpoints sit under `/api/v1`. A `GET /health` endpoint exists at the root for uptime checks and is not versioned. Authentication uses an `httpOnly` cookie named `token` (issued by `POST /auth/verify-code`). There is no separate token-issuance endpoint for bearer tokens — the session cookie covers both the web UI and direct API use from a browser.
 
 ### Auth
 
@@ -89,6 +90,12 @@ The `GET /stars` response always returns all four template keys, zeroed if the u
 ```json
 { "stars": { "short": 0, "standard": 3, "hybrid": 0, "deep_work": 1 } }
 ```
+
+### System
+
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| `GET` | `/health` | — | Liveness check — returns `{ "ok": true }` |
 
 ---
 
@@ -289,7 +296,7 @@ Pomodoro/
 ## Design decisions worth noting
 
 - **Client-side timer state** — all countdown logic lives in Zustand (`focusStore`). The server is only involved when a block completes and a star is awarded. Closing the tab loses current progress; the trade-off is zero server load during a focus session and no polling.
-- **httpOnly cookie JWT** — the JWT is never exposed to JavaScript. The session cookie is set by the server on successful OTP verification and cleared on logout. `withCredentials: true` on the Axios client and `credentials: true` on CORS are both required for this to work cross-origin.
+- **httpOnly + secure cookie JWT** — the JWT is never exposed to JavaScript (`httpOnly`) and is never sent over plain HTTP (`secure: true`). In development, mkcert issues a locally-trusted TLS cert used by both Fastify and the Vite dev server; in production, Railway terminates TLS at the edge so the browser always sees HTTPS even though the app container runs plain HTTP internally. `withCredentials: true` on the Axios client and `credentials: true` on CORS are both required for cross-origin cookie delivery.
 - **Two-step auth for both signup and login** — every login requires an OTP, not just signup. This turns the app into 2FA by default, at the cost of one extra email per login.
 - **Single-use OTP with immediate deletion** — the Redis key is deleted the moment the code is verified, preventing replay attacks even within the 5-minute TTL window.
 - **No session persistence on the client** — `authStore` is plain Zustand with no localStorage. A hard refresh triggers a fresh `GET /auth/me` via `ProtectedRoute`; if the cookie is still valid, the user is restored silently.
