@@ -6,6 +6,9 @@ COPY package.json package-lock.json ./
 COPY server/package.json ./server/
 COPY client/package.json ./client/
 
+# Required to compile bcrypt's native addon from source on Alpine
+RUN apk add --no-cache python3 make g++
+
 RUN npm ci
 
 COPY server/ ./server/
