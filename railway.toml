@@ -4,5 +4,3 @@ dockerfilePath = "Dockerfile"
 [deploy]
 healthcheckPath = "/health"
 healthcheckTimeout = 300
-# Runs before the new deployment goes live; DATABASE_URL is injected by Railway
-releaseCommand = "node /app/node_modules/.bin/prisma migrate deploy --schema /app/server/prisma/schema.prisma"

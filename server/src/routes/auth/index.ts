@@ -23,13 +23,15 @@ export default async function authRoutes(app: FastifyInstance) {
       return badRequest(reply, 'Password must be at least 8 characters')
     }
 
-    const existing = await app.prisma.user.findFirst({
-      where: { OR: [{ email }, { username }] },
-    })
-    if (existing) {
-      if (existing.email === email) return conflict(reply, 'Email already in use')
-      return conflict(reply, 'Username already taken')
+    const existingByEmail = await app.prisma.user.findUnique({ where: { email } })
+    if (existingByEmail) {
+      if (existingByEmail.isVerified) return conflict(reply, 'Email already in use')
+      // Unverified ghost: clean it up so the address can be re-registered.
+      await app.prisma.user.delete({ where: { id: existingByEmail.id } })
     }
+
+    const existingByUsername = await app.prisma.user.findUnique({ where: { username } })
+    if (existingByUsername) return conflict(reply, 'Username already taken')
 
     const passwordHash = await hashPassword(password)
 

@@ -51,4 +51,4 @@ COPY --from=builder /app/client/dist         ./client/dist
 ENV NODE_ENV=production
 EXPOSE 3000
 
-CMD ["node", "server/dist/index.js"]
+CMD ["sh", "-c", "node /app/node_modules/.bin/prisma migrate deploy --schema /app/server/prisma/schema.prisma && node server/dist/index.js"]
